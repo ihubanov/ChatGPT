@@ -113,10 +113,10 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                                                 file_name_str
                                             );
 
-                                            // Show an ask dialog
+                                            // Show a confirmation dialog
                                             let confirmed = app_handle_clone
                                                 .dialog()
-                                                .ask(&message, "Open File?")
+                                                .confirm(&message, "Open File?")
                                                 .await
                                                 .unwrap_or(false); // Default to false if dialog fails
 
