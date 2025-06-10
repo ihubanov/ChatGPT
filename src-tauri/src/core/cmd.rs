@@ -1,3 +1,5 @@
+use std::fs;
+use std::path::PathBuf;
 use tauri::{command, AppHandle, LogicalPosition, Manager, PhysicalSize};
 
 use crate::core::{
@@ -188,5 +190,36 @@ pub fn set_view_ask(app: AppHandle, enabled: bool) {
             ),
             PhysicalSize::new(win_size.width, ask_height),
         );
+    }
+}
+
+#[command]
+pub fn debug_get_webview_content(app: AppHandle, window: tauri::Window) -> Result<(), String> {
+    let label = window.label();
+    let filename = format!("webview_content_{}.html", label);
+    let path = PathBuf::from("/tmp").join(&filename);
+
+    // Get the URL of the webview
+    let current_url = window.url().map_or_else(|e| format!("Error getting URL: {}", e), |u| u.to_string());
+
+    // Try to get the outerHTML of the documentElement
+    // This eval might fail depending on CSP of the loaded page or if the page isn't fully loaded.
+    match window.eval("document.documentElement.outerHTML") {
+        Ok(html_content) => {
+            let full_content = format!("<!-- Webview Label: {} -->
+<!-- Webview URL: {} -->
+{}", label, current_url, html_content);
+            fs::write(&path, full_content)
+                .map_err(|e| format!("Failed to write HTML content to {}: {}", path.display(), e))?;
+            Ok(())
+        }
+        Err(e) => {
+            let error_content = format!("<!-- Webview Label: {} -->
+<!-- Webview URL: {} -->
+<!-- Error getting HTML content: {} -->", label, current_url, e);
+            fs::write(&path, error_content)
+                .map_err(|e_write| format!("Failed to write error content to {}: {}", path.display(), e_write))?;
+            Err(format!("Failed to eval script for HTML content: {}", e))
+        }
     }
 }

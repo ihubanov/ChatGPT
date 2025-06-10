@@ -21,6 +21,7 @@ fn main() {
             cmd::ask_send,
             cmd::set_theme,
             window::open_settings,
+            cmd::debug_get_webview_content,
         ])
         .setup(setup::init)
         .run(tauri::generate_context!())
