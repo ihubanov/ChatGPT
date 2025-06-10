@@ -96,39 +96,41 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                                         .clone();
 
                                     if success {
-                                        // Clone necessary variables for the async block
-                                        let final_path_clone = final_path.clone();
-                                        let app_handle_clone = app_handle.clone();
+                                        // Temporarily disabling dialog confirmation for downloads
+                                        // // Clone necessary variables for the async block
+                                        // let final_path_clone = final_path.clone();
+                                        // let app_handle_clone = app_handle.clone();
 
-                                        // Spawn a new task for the async dialog
-                                        tauri::async_runtime::spawn(async move {
-                                            let file_name_str = final_path_clone
-                                                .file_name()
-                                                .unwrap_or_default() // Should have a filename due to prior sanitization
-                                                .to_string_lossy()
-                                                .to_string();
+                                        // // Spawn a new task for the async dialog
+                                        // tauri::async_runtime::spawn(async move {
+                                        //     let file_name_str = final_path_clone
+                                        //         .file_name()
+                                        //         .unwrap_or_default() // Should have a filename due to prior sanitization
+                                        //         .to_string_lossy()
+                                        //         .to_string();
+                                        //
+                                        //     let message = format!(
+                                        //         "Download complete: {}. Do you want to open it?",
+                                        //         file_name_str
+                                        //     );
+                                        //
+                                        //     // Use MessageDialogBuilder with callback-based show
+                                        //     let dialog_builder = MessageDialogBuilder::new(
+                                        //         app_handle_clone.dialog().clone(), // Correctly get Dialog<R> and clone it
+                                        //         "Open File?",
+                                        //         &message
+                                        //     );
 
-                                            let message = format!(
-                                                "Download complete: {}. Do you want to open it?",
-                                                file_name_str
-                                            );
-
-                                            // Use MessageDialogBuilder with callback-based show
-                                            let dialog_builder = MessageDialogBuilder::new(
-                                                app_handle_clone.dialog().clone(), // Correctly get Dialog<R> and clone it
-                                                "Open File?",
-                                                &message
-                                            );
-
-                                            // final_path_clone and app_handle_clone are captured by the async move block
-                                            dialog_builder.show(move |confirmed| {
-                                                if confirmed {
-                                                    if let Err(e) = app_handle_clone.shell().open(final_path_clone.to_string_lossy(), None) {
-                                                        eprintln!("[Download] Failed to open file {}: {}", final_path_clone.display(), e);
-                                                    }
-                                                }
-                                            });
-                                        });
+                                        //     // final_path_clone and app_handle_clone are captured by the async move block
+                                        //     dialog_builder.show(move |confirmed| {
+                                        //         if confirmed {
+                                        //             if let Err(e) = app_handle_clone.shell().open(final_path_clone.to_string_lossy(), None) {
+                                        //                 eprintln!("[Download] Failed to open file {}: {}", final_path_clone.display(), e);
+                                        //             }
+                                        //         }
+                                        //     });
+                                        // });
+                                        println!("[Download] File downloaded successfully to {}. Dialog is temporarily disabled.", final_path.display());
                                     }
                                 }
                                 _ => (),
