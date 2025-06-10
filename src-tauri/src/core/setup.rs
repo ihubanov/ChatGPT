@@ -6,7 +6,7 @@ use tauri::{
     webview::DownloadEvent, App, LogicalPosition, Manager, PhysicalSize, WebviewBuilder,
     WebviewUrl, WindowBuilder, WindowEvent,
 };
-use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder, MessageDialogKind}; // Modified for MessageDialogBuilder
+use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder}; // MessageDialogKind removed as .kind() is not used
 use tauri_plugin_shell::ShellExt;
 
 #[cfg(target_os = "macos")]
@@ -113,19 +113,21 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                                                 file_name_str
                                             );
 
-                                            // Use MessageDialogBuilder for confirmation
-                                            let dialog_result = MessageDialogBuilder::new(&app_handle_clone, "Open File?", &message)
-                                                .kind(MessageDialogKind::Ask) // Ask kind typically provides Yes/No
-                                                .show()
-                                                .await;
-                                            let confirmed = dialog_result.unwrap_or(false); // Default to false if dialog fails or user cancels
+                                            // Use MessageDialogBuilder with callback-based show
+                                            let dialog_builder = MessageDialogBuilder::new(
+                                                app_handle_clone.dialog().clone(), // Correctly get Dialog<R> and clone it
+                                                "Open File?",
+                                                &message
+                                            );
 
-                                            if confirmed {
-                                                app_handle_clone
-                                                    .shell()
-                                                    .open(final_path_clone.to_string_lossy(), None)
-                                                    .expect("[view:download] Failed to open file");
-                                            }
+                                            // final_path_clone and app_handle_clone are captured by the async move block
+                                            dialog_builder.show(move |confirmed| {
+                                                if confirmed {
+                                                    if let Err(e) = app_handle_clone.shell().open(final_path_clone.to_string_lossy(), None) {
+                                                        eprintln!("[Download] Failed to open file {}: {}", final_path_clone.display(), e);
+                                                    }
+                                                }
+                                            });
                                         });
                                     }
                                 }
