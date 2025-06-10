@@ -195,31 +195,44 @@ pub fn set_view_ask(app: AppHandle, enabled: bool) {
 
 #[command]
 pub fn debug_get_webview_content(app: AppHandle, window: tauri::Window) -> Result<(), String> {
-    let label = window.label();
-    let filename = format!("webview_content_{}.html", label);
-    let path = PathBuf::from("/tmp").join(&filename);
+    let window_label = window.label(); // Label of the window
 
-    // Get the URL of the webview
-    let current_url = window.url().map_or_else(|e| format!("Error getting URL: {}", e), |u| u.to_string());
+    match window.current_webview() {
+        Some(webview) => {
+            let webview_label = webview.label(); // Label of the webview itself
+            let filename = format!("webview_content_window_{}_webview_{}.html", window_label, webview_label);
+            let path = PathBuf::from("/tmp").join(&filename);
 
-    // Try to get the outerHTML of the documentElement
-    // This eval might fail depending on CSP of the loaded page or if the page isn't fully loaded.
-    match window.eval("document.documentElement.outerHTML") {
-        Ok(html_content) => {
-            let full_content = format!("<!-- Webview Label: {} -->
+            let current_url = webview.url().map_or_else(|e| format!("Error getting URL: {}", e), |u| u.to_string());
+
+            match webview.eval("document.documentElement.outerHTML") {
+                Ok(html_content) => {
+                    let full_content = format!("<!-- Window Label: {} -->
+<!-- Webview Label: {} -->
 <!-- Webview URL: {} -->
-{}", label, current_url, html_content);
-            fs::write(&path, full_content)
-                .map_err(|e| format!("Failed to write HTML content to {}: {}", path.display(), e))?;
-            Ok(())
+{}", window_label, webview_label, current_url, html_content);
+                    fs::write(&path, full_content)
+                        .map_err(|e| format!("Failed to write HTML content to {}: {}", path.display(), e))?;
+                    Ok(())
+                }
+                Err(e) => {
+                    let error_content = format!("<!-- Window Label: {} -->
+<!-- Webview Label: {} -->
+<!-- Webview URL: {} -->
+<!-- Error getting HTML content: {} -->", window_label, webview_label, current_url, e);
+                    fs::write(&path, error_content)
+                        .map_err(|e_write| format!("Failed to write error content to {}: {}", path.display(), e_write))?;
+                    Err(format!("Failed to eval script for HTML content in webview {}: {}", webview_label, e))
+                }
+            }
         }
-        Err(e) => {
-            let error_content = format!("<!-- Webview Label: {} -->
-<!-- Webview URL: {} -->
-<!-- Error getting HTML content: {} -->", label, current_url, e);
-            fs::write(&path, error_content)
-                .map_err(|e_write| format!("Failed to write error content to {}: {}", path.display(), e_write))?;
-            Err(format!("Failed to eval script for HTML content: {}", e))
+        None => {
+            let filename = format!("webview_content_window_{}_no_current_webview.txt", window_label);
+            let path = PathBuf::from("/tmp").join(&filename);
+            let error_message = format!("Window {} has no current/focused webview.", window_label);
+            fs::write(&path, &error_message)
+                .map_err(|e| format!("Failed to write error to {}: {}", path.display(), e))?;
+            Err(error_message)
         }
     }
 }
