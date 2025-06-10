@@ -6,7 +6,7 @@ use tauri::{
     webview::DownloadEvent, App, LogicalPosition, Manager, PhysicalSize, WebviewBuilder,
     WebviewUrl, WindowBuilder, WindowEvent,
 };
-use tauri_plugin_dialog::DialogExt; // Added for dialog
+use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder, MessageDialogKind}; // Modified for MessageDialogBuilder
 use tauri_plugin_shell::ShellExt;
 
 #[cfg(target_os = "macos")]
@@ -113,12 +113,12 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                                                 file_name_str
                                             );
 
-                                            // Show a confirmation dialog
-                                            let confirmed = app_handle_clone
-                                                .dialog()
-                                                .confirm(&message, "Open File?")
-                                                .await
-                                                .unwrap_or(false); // Default to false if dialog fails
+                                            // Use MessageDialogBuilder for confirmation
+                                            let dialog_result = MessageDialogBuilder::new(&app_handle_clone, "Open File?", &message)
+                                                .kind(MessageDialogKind::Ask) // Ask kind typically provides Yes/No
+                                                .show()
+                                                .await;
+                                            let confirmed = dialog_result.unwrap_or(false); // Default to false if dialog fails or user cancels
 
                                             if confirmed {
                                                 app_handle_clone
