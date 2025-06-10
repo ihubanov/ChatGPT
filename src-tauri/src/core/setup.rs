@@ -6,6 +6,7 @@ use tauri::{
     webview::DownloadEvent, App, LogicalPosition, Manager, PhysicalSize, WebviewBuilder,
     WebviewUrl, WindowBuilder, WindowEvent,
 };
+use tauri_plugin_dialog::DialogExt; // Added for dialog
 use tauri_plugin_shell::ShellExt;
 
 #[cfg(target_os = "macos")]
@@ -61,16 +62,32 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                         let download_path = Arc::new(Mutex::new(PathBuf::new()));
                         move |_, event| {
                             match event {
-                                DownloadEvent::Requested { destination, .. } => {
+                                DownloadEvent::Requested { destination: original_destination_ref, .. } => {
+                                    // 2.a. Get the original destination
+                                    let original_destination = original_destination_ref.clone();
+
+                                    // 2.b. Create a safe_filename
+                                    let safe_filename = original_destination.file_name()
+                                        .map(PathBuf::from)
+                                        .unwrap_or_else(|| PathBuf::from("downloaded_file.unknown"));
+
+                                    // 2.c. Get download_dir
                                     let download_dir = app_handle
                                         .path()
                                         .download_dir()
                                         .expect("[view:download] Failed to get download directory");
-                                    let mut locked_path = download_path
+
+                                    // 2.d. Construct the new final_save_path
+                                    let final_save_path = download_dir.join(&safe_filename);
+
+                                    // 3. Update the Arc<Mutex<PathBuf>> used by DownloadEvent::Finished
+                                    let mut shared_download_path_lock = download_path
                                         .lock()
-                                        .expect("[view:download] Failed to lock download path");
-                                    *locked_path = download_dir.join(&destination);
-                                    *destination = locked_path.clone();
+                                        .expect("[view:download] Failed to lock shared download path for update");
+                                    *shared_download_path_lock = final_save_path.clone();
+
+                                    // 2.e. Update the mutable destination in the event
+                                    *original_destination_ref = final_save_path;
                                 }
                                 DownloadEvent::Finished { success, .. } => {
                                     let final_path = download_path
@@ -79,10 +96,37 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                                         .clone();
 
                                     if success {
-                                        app_handle
-                                            .shell()
-                                            .open(final_path.to_string_lossy(), None)
-                                            .expect("[view:download] Failed to open file");
+                                        // Clone necessary variables for the async block
+                                        let final_path_clone = final_path.clone();
+                                        let app_handle_clone = app_handle.clone();
+
+                                        // Spawn a new task for the async dialog
+                                        tauri::async_runtime::spawn(async move {
+                                            let file_name_str = final_path_clone
+                                                .file_name()
+                                                .unwrap_or_default() // Should have a filename due to prior sanitization
+                                                .to_string_lossy()
+                                                .to_string();
+
+                                            let message = format!(
+                                                "Download complete: {}. Do you want to open it?",
+                                                file_name_str
+                                            );
+
+                                            // Show an ask dialog
+                                            let confirmed = app_handle_clone
+                                                .dialog()
+                                                .ask(&message, "Open File?")
+                                                .await
+                                                .unwrap_or(false); // Default to false if dialog fails
+
+                                            if confirmed {
+                                                app_handle_clone
+                                                    .shell()
+                                                    .open(final_path_clone.to_string_lossy(), None)
+                                                    .expect("[view:download] Failed to open file");
+                                            }
+                                        });
                                     }
                                 }
                                 _ => (),
