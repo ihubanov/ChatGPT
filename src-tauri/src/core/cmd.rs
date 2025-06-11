@@ -194,12 +194,14 @@ pub fn set_view_ask(app: AppHandle, enabled: bool) {
 }
 
 #[command]
-pub fn debug_get_webview_content(app: AppHandle, window: tauri::Window) -> Result<(), String> {
-    let window_label = window.label(); // Label of the window
-
-    match window.current_webview() {
+pub fn debug_get_webview_content(app_handle: AppHandle, webview_label: String) -> Result<(), String> {
+    match app_handle.get_webview(&webview_label) { // Get webview directly using AppHandle and its label
         Some(webview) => {
-            let webview_label = webview.label(); // Label of the webview itself
+            // Get the parent window of this webview for its label
+            let window_label = match webview.window() {
+                Ok(w) => w.label().to_string(),
+                Err(_) => "unknown_window".to_string(), // Fallback if window somehow can't be fetched
+            };
             let filename = format!("webview_content_window_{}_webview_{}.html", window_label, webview_label);
             let path = PathBuf::from("/tmp").join(&filename);
 
@@ -210,7 +212,7 @@ pub fn debug_get_webview_content(app: AppHandle, window: tauri::Window) -> Resul
                     let full_content = format!("<!-- Window Label: {} -->
 <!-- Webview Label: {} -->
 <!-- Webview URL: {} -->
-{}", window_label, webview_label, current_url, html_content);
+{}", window_label, &webview_label, current_url, html_content);
                     fs::write(&path, full_content)
                         .map_err(|e| format!("Failed to write HTML content to {}: {}", path.display(), e))?;
                     Ok(())
@@ -219,7 +221,7 @@ pub fn debug_get_webview_content(app: AppHandle, window: tauri::Window) -> Resul
                     let error_content = format!("<!-- Window Label: {} -->
 <!-- Webview Label: {} -->
 <!-- Webview URL: {} -->
-<!-- Error getting HTML content: {} -->", window_label, webview_label, current_url, e);
+<!-- Error getting HTML content: {} -->", window_label, &webview_label, current_url, e);
                     fs::write(&path, error_content)
                         .map_err(|e_write| format!("Failed to write error content to {}: {}", path.display(), e_write))?;
                     Err(format!("Failed to eval script for HTML content in webview {}: {}", webview_label, e))
@@ -227,9 +229,9 @@ pub fn debug_get_webview_content(app: AppHandle, window: tauri::Window) -> Resul
             }
         }
         None => {
-            let filename = format!("webview_content_window_{}_no_current_webview.txt", window_label);
+            let filename = format!("webview_content_webview_{}_not_found.txt", webview_label);
             let path = PathBuf::from("/tmp").join(&filename);
-            let error_message = format!("Window {} has no current/focused webview.", window_label);
+            let error_message = format!("Webview with label {} not found.", webview_label);
             fs::write(&path, &error_message)
                 .map_err(|e| format!("Failed to write error to {}: {}", path.display(), e))?;
             Err(error_message)
