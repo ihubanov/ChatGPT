@@ -3,10 +3,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tauri::{
-    webview::DownloadEvent, App, LogicalPosition, Manager, PhysicalSize, WebviewBuilder,
-    WebviewUrl, WindowBuilder, WindowEvent,
+    webview::DownloadEvent, App, Manager, WebviewBuilder, WebviewUrl, WindowBuilder, WindowEvent,
 };
-use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder}; // MessageDialogKind removed as .kind() is not used
+// LogicalPosition, PhysicalSize might become unused, also ASK_HEIGHT, TITLEBAR_HEIGHT from constants
+use tauri_plugin_dialog::{DialogExt, MessageDialogBuilder};
 use tauri_plugin_shell::ShellExt;
 
 #[cfg(target_os = "macos")]
@@ -14,15 +14,15 @@ use tauri::TitleBarStyle;
 
 use crate::core::{
     conf::AppConf,
-    constant::{ASK_HEIGHT, INIT_SCRIPT, TITLEBAR_HEIGHT},
+    constant::INIT_SCRIPT, // ASK_HEIGHT, TITLEBAR_HEIGHT removed
     template,
 };
 
 pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle();
 
-    let conf = &AppConf::load(handle)?;
-    let ask_mode_height = if conf.ask_mode { ASK_HEIGHT } else { 0.0 };
+    // let conf = &AppConf::load(handle)?; // ask_mode_height is no longer needed here
+    // let ask_mode_height = if conf.ask_mode { ASK_HEIGHT } else { 0.0 };
 
     template::Template::new(AppConf::get_scripts_path(handle)?);
 
@@ -136,165 +136,52 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                             true
                         }
                     })
-                    .initialization_script(&AppConf::load_script(&handle, "ask.js"))
+                    // .initialization_script(&AppConf::load_script(&handle, "ask.js")) // Removed ask.js
                     .initialization_script(INIT_SCRIPT);
 
-            let titlebar_view = WebviewBuilder::new(
-                "titlebar",
-                WebviewUrl::App("index.html".into()),
-            )
-            .auto_resize();
-
-            let ask_view =
-                WebviewBuilder::new("ask", WebviewUrl::App("index.html".into()))
-                    .auto_resize();
+            // titlebar_view and ask_view are removed
+            // let titlebar_view = WebviewBuilder::new(...)
+            // let ask_view = WebviewBuilder::new(...)
 
             let win = window.lock().unwrap();
-            let scale_factor = win.scale_factor().unwrap();
-            let titlebar_height = (scale_factor * TITLEBAR_HEIGHT).round() as u32;
-            let ask_height = (scale_factor * ask_mode_height).round() as u32;
+            // scale_factor, titlebar_height, ask_height might be unused now unless other logic needs them
+            // let scale_factor = win.scale_factor().unwrap();
+            // let titlebar_height = (scale_factor * TITLEBAR_HEIGHT).round() as u32;
+            // let ask_height = (scale_factor * ask_mode_height).round() as u32;
 
-            #[cfg(target_os = "macos")]
-            {
-                let main_area_height = win_size.height - titlebar_height;
+            // Add main_view as the only child, filling the window
+            // The PhysicalSize can be derived from win_size obtained earlier, or let auto_resize handle it.
+            // For clarity, explicitly set it to the window's inner dimensions.
+            win.add_child(
+                main_view,
+                tauri::LogicalPosition::new(0.0, 0.0), // Position at top-left
+                win_size, // Size to fill the window
+            )
+            .unwrap();
 
-                win.add_child(
-                    titlebar_view,
-                    LogicalPosition::new(0, 0),
-                    PhysicalSize::new(win_size.width, titlebar_height),
-                )
-                .unwrap();
-                win.add_child(
-                    ask_view,
-                    LogicalPosition::new(
-                        0.0,
-                        (win_size.height as f64 / scale_factor) - ask_mode_height,
-                    ),
-                    PhysicalSize::new(win_size.width, ask_height),
-                )
-                .unwrap();
-                win.add_child(
-                    main_view,
-                    LogicalPosition::new(0.0, TITLEBAR_HEIGHT),
-                    PhysicalSize::new(win_size.width, main_area_height - ask_height),
-                )
-                .unwrap();
-            }
-
-            #[cfg(not(target_os = "macos"))]
-            {
-                win.add_child(
-                    ask_view,
-                    LogicalPosition::new(
-                        0.0,
-                        (win_size.height as f64 / scale_factor) - ask_mode_height,
-                    ),
-                    PhysicalSize::new(win_size.width, ask_height),
-                )
-                .unwrap();
-                win.add_child(
-                    titlebar_view,
-                    LogicalPosition::new(
-                        0.0,
-                        (win_size.height as f64 / scale_factor) - ask_mode_height - TITLEBAR_HEIGHT,
-                    ),
-                    PhysicalSize::new(win_size.width, titlebar_height),
-                )
-                .unwrap();
-                win.add_child(
-                    main_view,
-                    LogicalPosition::new(0.0, 0.0),
-                    PhysicalSize::new(
-                        win_size.width,
-                        win_size.height - (ask_height + titlebar_height),
-                    ),
-                )
-                .unwrap();
-            }
-
+            // The complex multi-view resizing logic in on_window_event is removed.
+            // main_view has auto_resize(), so it should adapt.
+            // If other window events need to be handled, the on_window_event can be kept,
+            // but the specific resizing code for the three views is gone.
+            // For now, we remove the specific Resized event handling logic.
             let window_clone = Arc::clone(&window);
-            let set_view_properties =
-                |view: &tauri::Webview, position: LogicalPosition<f64>, size: PhysicalSize<u32>| {
-                    if let Err(e) = view.set_position(position) {
-                        eprintln!("[view:position] Failed to set view position: {}", e);
-                    }
-                    if let Err(e) = view.set_size(size) {
-                        eprintln!("[view:size] Failed to set view size: {}", e);
-                    }
-                };
-
             win.on_window_event(move |event| {
-                let conf = &AppConf::load(&handle).unwrap();
-                let ask_mode_height = if conf.ask_mode { ASK_HEIGHT } else { 0.0 };
-                let ask_height = (scale_factor * ask_mode_height).round() as u32;
-
-                if let WindowEvent::Resized(size) = event {
-                    let win = window_clone.lock().unwrap();
-
-                    let main_view = win
-                        .get_webview("main")
-                        .expect("[view:main] Failed to get webview window");
-                    let titlebar_view = win
-                        .get_webview("titlebar")
-                        .expect("[view:titlebar] Failed to get webview window");
-                    let ask_view = win
-                        .get_webview("ask")
-                        .expect("[view:ask] Failed to get webview window");
-
-                    #[cfg(target_os = "macos")]
-                    {
-                        set_view_properties(
-                            &main_view,
-                            LogicalPosition::new(0.0, TITLEBAR_HEIGHT),
-                            PhysicalSize::new(
-                                size.width,
-                                size.height - (titlebar_height + ask_height),
-                            ),
-                        );
-                        set_view_properties(
-                            &titlebar_view,
-                            LogicalPosition::new(0.0, 0.0),
-                            PhysicalSize::new(size.width, titlebar_height),
-                        );
-                        set_view_properties(
-                            &ask_view,
-                            LogicalPosition::new(
-                                0.0,
-                                (size.height as f64 / scale_factor) - ask_mode_height,
-                            ),
-                            PhysicalSize::new(size.width, ask_height),
-                        );
+                match event {
+                    WindowEvent::CloseRequested { api, .. } => {
+                        // Example: if you wanted to prevent close or do something else
+                        // api.prevent_close();
+                        // For now, just let it proceed or remove if no custom handling needed.
+                        // Default close behavior will occur if not handled.
                     }
-
-                    #[cfg(not(target_os = "macos"))]
-                    {
-                        set_view_properties(
-                            &main_view,
-                            LogicalPosition::new(0.0, 0.0),
-                            PhysicalSize::new(
-                                size.width,
-                                size.height - (ask_height + titlebar_height),
-                            ),
-                        );
-                        set_view_properties(
-                            &titlebar_view,
-                            LogicalPosition::new(
-                                0.0,
-                                (size.height as f64 / scale_factor) - TITLEBAR_HEIGHT,
-                            ),
-                            PhysicalSize::new(size.width, titlebar_height),
-                        );
-                        set_view_properties(
-                            &ask_view,
-                            LogicalPosition::new(
-                                0.0,
-                                (size.height as f64 / scale_factor)
-                                    - ask_mode_height
-                                    - TITLEBAR_HEIGHT,
-                            ),
-                            PhysicalSize::new(size.width, ask_height),
-                        );
+                    WindowEvent::Resized(_size) => {
+                        // The main_view should auto-resize. If specific adjustments were needed
+                        // for a single view, they could be done here, but usually not necessary
+                        // if the view is added to fill the parent.
+                        // We can log or leave this empty if auto-resize is sufficient.
+                        // println!("Window resized. Main view should auto-resize.");
                     }
+                    // Handle other events as needed
+                    _ => {}
                 }
             });
         }
