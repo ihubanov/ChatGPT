@@ -164,10 +164,10 @@ pub fn init(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
             // If other window events need to be handled, the on_window_event can be kept,
             // but the specific resizing code for the three views is gone.
             // For now, we remove the specific Resized event handling logic.
-            let window_clone = Arc::clone(&window);
+            // let window_clone = Arc::clone(&window); // Removed as unused
             win.on_window_event(move |event| {
                 match event {
-                    WindowEvent::CloseRequested { api, .. } => {
+                    WindowEvent::CloseRequested { api: _, .. } => { // api marked as unused
                         // Example: if you wanted to prevent close or do something else
                         // api.prevent_close();
                         // For now, just let it proceed or remove if no custom handling needed.
