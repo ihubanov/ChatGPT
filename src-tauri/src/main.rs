@@ -14,14 +14,14 @@ fn main() {
             cmd::view_url,
             cmd::view_go_forward,
             cmd::view_go_back,
-            cmd::set_view_ask,
+            // cmd::set_view_ask, // Removed
             cmd::get_app_conf,
             cmd::window_pin,
-            cmd::ask_sync,
-            cmd::ask_send,
+            // cmd::ask_sync, // Removed
+            // cmd::ask_send, // Removed
             cmd::set_theme,
             window::open_settings,
-            cmd::debug_get_webview_content,
+            // cmd::debug_get_webview_content, // Removed
         ])
         .setup(setup::init)
         .run(tauri::generate_context!())
