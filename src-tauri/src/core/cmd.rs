@@ -198,16 +198,16 @@ pub fn debug_get_webview_content(app_handle: AppHandle, webview_label: String) -
     match app_handle.get_webview(&webview_label) { // Get webview directly using AppHandle and its label
         Some(webview) => {
             // Get the parent window of this webview for its label
-            let window_label = match webview.window() {
+            let window_label = match webview.window() { // Corrected match
                 Ok(w) => w.label().to_string(),
-                Err(_) => "unknown_window".to_string(), // Fallback if window somehow can't be fetched
+                Err(_) => "unknown_window".to_string(),
             };
             let filename = format!("webview_content_window_{}_webview_{}.html", window_label, webview_label);
             let path = PathBuf::from("/tmp").join(&filename);
 
             let current_url = webview.url().map_or_else(|e| format!("Error getting URL: {}", e), |u| u.to_string());
 
-            match webview.eval("document.documentElement.outerHTML") {
+            match webview.eval("return document.documentElement.outerHTML") { // Added "return"
                 Ok(html_content) => {
                     let full_content = format!("<!-- Window Label: {} -->
 <!-- Webview Label: {} -->
